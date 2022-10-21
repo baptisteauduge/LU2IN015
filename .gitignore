@@ -50,3 +50,12 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+# MacOs Files
+.DS_Store
+
+# Courses File
+compte_rendu.txt
+
+# Vscode
+.vscode/
