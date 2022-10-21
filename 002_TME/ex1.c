@@ -23,5 +23,5 @@ int main(int argc, char **argv) {
 
   fork_n_times(atoi(argv[1]), true);
 
-  return 0;
+  return EXIT_SUCCESS;
 }

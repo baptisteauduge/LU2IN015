@@ -13,8 +13,8 @@ for (int i = 0; i < nbr_files; ++i) {
 int main(int argc, char **argv) {
   if (argc < 3) {
     printf("Usage: ./ex3 <researched> <file1> <file2> ...\n");
-    return 1;
+    return EXIT_FAILURE;
   }
   multi_grep(argc - 2, argv + 2, argv[1]);
-  return 0;
+  return EXIT_SUCCESS;
 }

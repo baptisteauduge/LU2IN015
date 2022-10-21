@@ -2,6 +2,9 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#define EXIT_SUCCESS 0
+#define EXIT_FAILURE 1
+
 const int MAX_FILS = 3;
 
 void multi_grep_constraint(int nbr_files, char **files, char *search) {
@@ -19,8 +22,8 @@ void multi_grep_constraint(int nbr_files, char **files, char *search) {
 int main(int argc, char **argv) {
   if (argc < 3) {
     printf("Usage: ./ex4 <researched> <file1> <file2> ...\n");
-    return 1;
+    return EXIT_FAILURE;
   }
   multi_grep_constraint(argc - 2, argv + 2, argv[1]);
-  return 0;
+  return EXIT_SUCCESS;
 }
