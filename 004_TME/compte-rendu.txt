@@ -1,0 +1,440 @@
+=====================================================
+
+2I015 - COMPTE-RENDU TME 4 (Verrouillage)
+
+Noms, prénoms et numéro des étudiants du binôme :
+1) AUDUGÉ Baptiste 21106156
+2) GIUDICELLI Jeremy 21112784
+
+=====================================================
+
+
+EXERCICE 1 : Première et deuxième écritures
+===========================================
+
+<exo1a.c>
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <string.h>
+
+int main(int argc, char *argv[]){
+	if(argc!=2){
+		printf("Paramère attendu : nom du fichier\n");
+		exit(EXIT_FAILURE);
+	}
+	struct stat sb;
+
+  int locker_file=open("tmp", O_CREAT|O_TRUNC|O_WRONLY,S_IRUSR|S_IWUSR);
+  lseek(locker_file, 0, SEEK_SET);
+  lockf(locker_file, F_LOCK, 0);
+
+	if(stat(argv[1],&sb)==-1){ // Le fichier n'existe pas, on écrit dedans
+		int fichier=open(argv[1],O_CREAT|O_TRUNC|O_WRONLY,S_IRUSR|S_IWUSR);
+		dup2(fichier,1);
+		close(fichier);
+		printf("%d : premiere ecriture\n",getpid());
+    lseek(locker_file, 0, SEEK_SET);
+    lockf(locker_file, F_ULOCK, 0);
+    close(locker_file);
+		exit(EXIT_SUCCESS);		
+	}else{ // Le fichier existe, on écrit à la suite
+		int fichier=open(argv[1],O_APPEND|O_WRONLY);
+		dup2(fichier,1);
+		close(fichier);
+		printf("%d : deuxieme ecriture\n",getpid());
+    lseek(locker_file, 0, SEEK_SET);
+    lockf(locker_file, F_ULOCK, 0);
+    close(locker_file);
+		exit(EXIT_SUCCESS);
+	}
+	exit(EXIT_SUCCESS);
+}
+
+EXERCICE 2 : Atchoum et Dormeur
+===============================
+
+Question 1 : 
+
+  Oui car le locker est placé sur toute l'exécution, donc la journée de dormeur et Atchoum ne pourra 
+  pas s'éxécuter en même temps et donc ils ne pourront pas aller au toilettes en même temps.
+
+Question 2 :
+
+  Le problème est que la journée de Atchoum et Dormeur ne peuvent s'éxécuter en même temps
+  (si Atchoum vie, alors Dormeur ne peut pas vivre). Or nous voulons seulement que Atchoum
+  et Dormeur ne puisse pas aller aux toilettes en même temps et non pas qu'ils ne puissent pas vivre
+  en même temps.
+
+Question 3 :
+
+<exo2a.c>
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <sys/wait.h>
+
+int main(void){
+
+	srand(getpid());
+	int i,k;
+	
+	int verrou=open("verrou",O_CREAT|O_RDWR,S_IRUSR|S_IWUSR);
+	
+	lseek(verrou,0,SEEK_SET);
+	lockf(verrou,F_LOCK,0);
+	printf("Dormeur rentre aux toilettes\n");
+	sleep(1);
+	for(k=rand()%10;k>=0;k--){
+		printf("Dormeur sort des toilettes\n");
+    lseek(verrou,0,SEEK_SET);
+	  lockf(verrou,F_ULOCK,0);
+		for(i=rand()%6;i>=0;i--){
+			printf("zzzz\n");
+			sleep(1);
+		}
+    lseek(verrou,0,SEEK_SET);
+	  lockf(verrou,F_LOCK,0);
+		printf("Dormeur rentre aux toilettes\n");
+		sleep(1);
+	}
+	printf("Dormeur sort des toilettes\n");
+  lseek(verrou,0,SEEK_SET);
+	lockf(verrou,F_ULOCK,0);
+	close(verrou);
+	exit(EXIT_SUCCESS);
+}
+
+<exo2b.c>
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <sys/wait.h>
+
+int main(void){
+
+	srand(getpid());
+	int i,k;
+	
+	int verrou=open("verrou",O_CREAT|O_RDWR,S_IRUSR|S_IWUSR);
+	
+
+	for(k=rand()%10;k>=0;k--){
+		for(i=rand()%4;i>=0;i--){
+			printf("Atchoum !\n");
+			sleep(1);
+		}
+    lseek(verrou,0,SEEK_SET);
+	  lockf(verrou,F_LOCK,0);
+		printf("Atchoum rentre aux toilettes\n");
+		sleep(1);
+		printf("Atchoum sort des toilettes\n");
+    lseek(verrou,0,SEEK_SET);
+	  lockf(verrou,F_ULOCK,0);
+		for(i=rand()%4;i>=0;i--){
+			printf("Atchoum !\n");
+			sleep(1);
+		}
+	}
+
+	close(verrou);
+	exit(EXIT_SUCCESS);
+}
+
+EXERCICE 3 : Allons faire un tour à la piscine...
+=================================================
+
+Question 1 : 
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <time.h>
+
+#define FILE_CABINE "cabines"
+#define FILE_PANIER "paniers"
+#define MAX_TMP_BAIGNAIRE 10
+
+int open_rdwr(char *filename) {
+  int fd = open(filename, O_RDWR);
+  if (fd < 0) {
+    fprintf(stderr, "Error, when trying to open the file %s\n", filename);
+  }
+  return fd;
+}
+
+void my_locker_lock(int fd) {
+  lseek(fd, 0, SEEK_SET);
+  flock(fd, F_LOCK);
+}
+
+void my_locker_ulock(int fd) {
+  lseek(fd, 0, SEEK_SET);
+  flock(fd, F_ULOCK);
+}
+
+void free_ressource(int fd_file) {
+  char buffer[2];
+  int nb_ressources = 0;
+
+  lseek(fd_file, 0, SEEK_SET);
+  read(fd_file, buffer, sizeof(char));
+  nb_ressources = atoi(buffer);
+  sprintf(buffer, "%d", ++nb_ressources);
+  lseek(fd_file, 0, SEEK_SET);
+  write(fd_file, buffer, sizeof(char));
+}
+
+void take_ressource(int fd_file) {
+  char buffer[2] = "\0\0";
+  int nb_ressources = 0;
+
+  my_locker_lock(fd_file);
+  read(fd_file, buffer, sizeof(char));
+  nb_ressources = atoi(buffer);
+  while (nb_ressources == 0) {
+    my_locker_ulock(fd_file);
+    sleep(1);
+    my_locker_lock(fd_file);
+    read(fd_file, buffer, sizeof(char));
+    nb_ressources = atoi(buffer);
+  }
+  sprintf(buffer, "%d", --nb_ressources);
+  lseek(fd_file, 0, SEEK_SET);
+  write(fd_file, buffer, sizeof(char));
+  my_locker_ulock(fd_file);
+}
+
+void go_to_swimming_pool(int id) {
+  int fd_cabine = open_rdwr(FILE_CABINE);
+  int fd_panier = open_rdwr(FILE_PANIER);
+  int tmp_baignade = rand() % (MAX_TMP_BAIGNAIRE + 1);
+
+  printf("[%d] Arrivée à la piscine\n[%d] Cherche une cabine\n", id, id);
+  take_ressource(fd_cabine);
+  printf("[%d] Prise d'une cabine\n[%d] Cherche un panier\n", id, id);
+  take_ressource(fd_panier);
+  printf("[%d] Prise d'un panier\n[%d] Se change ...\n[%d] Libère la cabine\n", id, id, id);
+  free_ressource(fd_cabine);
+  printf("[%d] Se baigne pendant %d secondes ...\n", id, tmp_baignade);
+  sleep(tmp_baignade);
+  printf("[%d] A fini de se baigner\n", id);
+  printf("[%d] Recherche d'une cabine\n", id);
+  take_ressource(fd_cabine);
+  printf("[%d] Prise d'une cabine\n[%d] Se change ...\n[%d] Libère la cabine\n", id, id, id);
+  free_ressource(fd_cabine);
+  printf("[%d] Libère son panier\n", id);
+  free_ressource(fd_panier);
+  printf("[%d] Départ à la piscine\n", id);
+  close(fd_cabine);
+  close(fd_panier);
+}
+
+int main(int argc, char **argv) {
+  if (argc != 2) {
+    fprintf(stderr, "Usage: ./baigneurs <id>\n");
+    return EXIT_FAILURE;
+  }
+  srand(time(NULL));
+  go_to_swimming_pool(atoi(argv[1]));
+  return EXIT_SUCCESS;
+}
+
+Question 2 :
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <fcntl.h>
+#include <unistd.h>
+#define FILE_CABINE "cabines"
+#define FILE_PANIER "paniers"
+
+void init_files(char *nb_cabines, char *nb_paniers) {
+  int fd_cab = open(FILE_CABINE, O_WRONLY|O_CREAT|O_TRUNC, S_IRUSR|S_IWUSR);
+  if (fd_cab == -1) {
+    fprintf(stderr, "Error when trying to open/create file %s !\n", FILE_CABINE);
+    exit(EXIT_FAILURE);
+  }
+  int fd_pan = open(FILE_PANIER, O_WRONLY|O_CREAT|O_TRUNC, S_IRUSR|S_IWUSR);
+  if (fd_pan == -1) {
+    fprintf(stderr, "Error when trying to open/create file %s !\n", FILE_PANIER);
+    exit(EXIT_FAILURE);
+  }
+  write(fd_cab, nb_cabines, sizeof(char));
+  close(fd_cab);
+  write(fd_pan, nb_paniers, sizeof(char));
+  close(fd_pan);
+}
+
+void create_baigneurs(int nb_baigneurs) {
+  int i;
+  char i_str[2] = "\0\0";
+
+  for (i = 0; i < nb_baigneurs; ++i) {
+    sprintf(i_str, "%d", i);
+    if (fork() == 0) {
+      execl("./baigneurs", "./baigneurs", i_str, NULL);
+    }
+  }
+  for (i = 0; i < nb_baigneurs; ++i) wait(NULL);
+}
+
+int main(int argc, char **argv) {
+  if (argc != 4) {
+    fprintf(stderr, "Usage: ./baigneurs2 <nb_baigneurs> <nb_cabines> <nb_paniers>\n");
+    return EXIT_FAILURE;
+  }
+  init_files(argv[2], argv[3]);
+  create_baigneurs(atoi(argv[1]));
+}
+
+Question 4 :
+
+On fait face à une situation d'interblocage, si un baigneurs prends un panier,
+et qu'un autre arrive et prends une cabine. Le deuxième attendra de pouvoir prendre
+un panier avant de libérer sa cabine. Or si il n'y a plus de cabine disponible,
+le premier baigneur ne pourra pas prendre de cabine pour libérer son panier.
+On se retrouvera donc dans une situation où les deux baigneurs seront bloqué.
+Autrement dit, nos deux programmes seront bloqué, l'un attendant l'autre,
+et ce pour une durée infini ...
+
+L'éxecution pourra être :
+1 panier 1 cabine : (on notera B1 le baigneur 1, etc.)
+B1 arrive
+B1 prends une cabine (reste 0)
+B1 prends un panier (reste 0)
+B1 libère sa cabine (reste 1)
+B1 se baigne
+B2 arrive
+B2 prends une cabine (reste 0)
+B2 attends un panier ...
+B1 sors de la piscine
+B1 veut prendre une cabine
+B1 attends une cabine ...
+
+Situation d'interblocage...
+
+Résolution du problème ...
+
+On ne touche pas au fichier baigneurs2, car l'éxécution doit rester concurrente
+On ajoute cependant un locker au programme baigneurs, on trouve les emplacements
+de ce locker à la suite du dessin d'un graphique en 2 dimensions fait sur papier
+
+<baigneurs.c> (Corrigé)
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <time.h>
+
+#define FILE_CABINE "cabines"
+#define FILE_PANIER "paniers"
+#define FILE_LOCKER "locker"
+#define MAX_TMP_BAIGNAIRE 4
+
+int open_rdwr(char *filename) {
+  int fd = open(filename, O_RDWR);
+  if (fd < 0) {
+    fprintf(stderr, "Error, when trying to open the file %s\n", filename);
+  }
+  return fd;
+}
+
+void my_locker_lock(int fd) {
+  lseek(fd, 0, SEEK_SET);
+  flock(fd, F_LOCK);
+}
+
+void my_locker_ulock(int fd) {
+  lseek(fd, 0, SEEK_SET);
+  flock(fd, F_ULOCK);
+}
+
+void free_ressource(int fd_file) {
+  char buffer[2];
+  int nb_ressources = 0;
+
+  lseek(fd_file, 0, SEEK_SET);
+  read(fd_file, buffer, sizeof(char));
+  nb_ressources = atoi(buffer);
+  sprintf(buffer, "%d", ++nb_ressources);
+  lseek(fd_file, 0, SEEK_SET);
+  write(fd_file, buffer, sizeof(char));
+}
+
+void take_ressource(int fd_file) {
+  char buffer[2] = "\0\0";
+  int nb_ressources = 0;
+
+  my_locker_lock(fd_file);
+  read(fd_file, buffer, sizeof(char));
+  nb_ressources = atoi(buffer);
+  while (nb_ressources == 0) {
+    my_locker_ulock(fd_file);
+    sleep(1);
+    my_locker_lock(fd_file);
+    read(fd_file, buffer, sizeof(char));
+    nb_ressources = atoi(buffer);
+  }
+  sprintf(buffer, "%d", --nb_ressources);
+  lseek(fd_file, 0, SEEK_SET);
+  write(fd_file, buffer, sizeof(char));
+  my_locker_ulock(fd_file);
+}
+
+void go_to_swimming_pool(int id) {
+  int fd_cabine = open_rdwr(FILE_CABINE);
+  int fd_panier = open_rdwr(FILE_PANIER);
+  int fd_locker = open(FILE_LOCKER, O_CREAT|O_TRUNC, S_IREAD|S_IWRITE);
+  int tmp_baignade = rand() % (MAX_TMP_BAIGNAIRE + 1);
+
+  printf("[%d] Arrivée à la piscine\n[%d] Cherche une cabine\n", id, id);
+  my_locker_lock(fd_locker);
+  take_ressource(fd_cabine);
+  printf("[%d] Prise d'une cabine\n[%d] Cherche un panier\n", id, id);
+  take_ressource(fd_panier);
+  printf("[%d] Prise d'un panier\n[%d] Se change ...\n[%d] Libère la cabine\n", id, id, id);
+  free_ressource(fd_cabine);
+  printf("[%d] Se baigne pendant %d secondes ...\n", id, tmp_baignade);
+  sleep(tmp_baignade);
+  printf("[%d] A fini de se baigner\n", id);
+  printf("[%d] Recherche d'une cabine\n", id);
+  take_ressource(fd_cabine);
+  my_locker_ulock(fd_cabine);
+  printf("[%d] Prise d'une cabine\n[%d] Se change ...\n[%d] Libère la cabine\n", id, id, id);
+  free_ressource(fd_cabine);
+  printf("[%d] Libère son panier\n", id);
+  free_ressource(fd_panier);
+  printf("[%d] Départ à la piscine\n", id);
+  close(fd_cabine);
+  close(fd_panier);
+  close(fd_locker);
+}
+
+int main(int argc, char **argv) {
+  if (argc != 2) {
+    fprintf(stderr, "Usage: ./baigneurs <id>\n");
+    return EXIT_FAILURE;
+  }
+  srand(time(NULL));
+  go_to_swimming_pool(atoi(argv[1]));
+  return EXIT_SUCCESS;
+}
+
+Recopiez le code source de votre programme (exo3.c) ici.
+On ne parle pas de exo3c dans l'énnoncé ..
