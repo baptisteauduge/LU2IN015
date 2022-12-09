@@ -28,4 +28,4 @@ baigneurs2: baigneurs2.c
 	$(CC) -o $@ $(CFLAGS) $^
 
 fclean:
-	rm -rf *.o *~ *.dSYM $(PROGRAMS)
+	rm -rf *.o *~ *.dSYM $(PROGRAMS) *.lock

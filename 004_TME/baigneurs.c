@@ -3,10 +3,12 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <time.h>
+#include <sys/file.h>
+#include <errno.h>
 
-#define FILE_CABINE "cabines"
-#define FILE_PANIER "paniers"
-#define FILE_LOCKER "locker"
+#define FILE_CABINE "cabines.lock"
+#define FILE_PANIER "paniers.lock"
+#define FILE_LOCKER "locker.lock"
 #define MAX_TMP_BAIGNAIRE 4
 
 int open_rdwr(char *filename) {
@@ -19,12 +21,14 @@ int open_rdwr(char *filename) {
 
 void my_locker_lock(int fd) {
   lseek(fd, 0, SEEK_SET);
-  flock(fd, F_LOCK);
-}
+  if (lockf(fd, F_LOCK, 0) != 0)
+    fprintf(stderr, "Error, when trying to lock a file, errno: %d\n", errno);
+} 
 
 void my_locker_ulock(int fd) {
   lseek(fd, 0, SEEK_SET);
-  flock(fd, F_ULOCK);
+  if (lockf(fd, F_ULOCK, 0) != 0)
+    fprintf(stderr, "Error, when trying to unlock a file, errno: %d\n", errno);
 }
 
 void free_ressource(int fd_file) {
@@ -62,7 +66,7 @@ void take_ressource(int fd_file) {
 void go_to_swimming_pool(int id) {
   int fd_cabine = open_rdwr(FILE_CABINE);
   int fd_panier = open_rdwr(FILE_PANIER);
-  int fd_locker = open(FILE_LOCKER, O_CREAT|O_TRUNC, S_IREAD|S_IWRITE);
+  int fd_locker = open(FILE_LOCKER, O_WRONLY | O_CREAT, S_IREAD|S_IWRITE);
   int tmp_baignade = rand() % (MAX_TMP_BAIGNAIRE + 1);
 
   printf("[%d] Arrivée à la piscine\n[%d] Cherche une cabine\n", id, id);
@@ -77,7 +81,7 @@ void go_to_swimming_pool(int id) {
   printf("[%d] A fini de se baigner\n", id);
   printf("[%d] Recherche d'une cabine\n", id);
   take_ressource(fd_cabine);
-  my_locker_ulock(fd_cabine);
+  my_locker_ulock(fd_locker);
   printf("[%d] Prise d'une cabine\n[%d] Se change ...\n[%d] Libère la cabine\n", id, id, id);
   free_ressource(fd_cabine);
   printf("[%d] Libère son panier\n", id);

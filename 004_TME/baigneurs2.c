@@ -2,8 +2,8 @@
 #include <stdlib.h>
 #include <fcntl.h>
 #include <unistd.h>
-#define FILE_CABINE "cabines"
-#define FILE_PANIER "paniers"
+#define FILE_CABINE "cabines.lock"
+#define FILE_PANIER "paniers.lock"
 
 void init_files(char *nb_cabines, char *nb_paniers) {
   int fd_cab = open(FILE_CABINE, O_WRONLY|O_CREAT|O_TRUNC, S_IRUSR|S_IWUSR);
